@@ -90,6 +90,7 @@ type Configuration struct {
 	ServiceName       string          `description:"Name of the Traefik service in Consul Catalog (needs to be registered via the orchestrator or manually)." json:"serviceName,omitempty" toml:"serviceName,omitempty" yaml:"serviceName,omitempty" export:"true"`
 	Watch             bool            `description:"Watch Consul API events." json:"watch,omitempty" toml:"watch,omitempty" yaml:"watch,omitempty" export:"true"`
 	StrictChecks      []string        `description:"A list of service health statuses to allow taking traffic." json:"strictChecks,omitempty" toml:"strictChecks,omitempty" yaml:"strictChecks,omitempty" export:"true"`
+	FenceOnWarning    bool            `description:"Fence HTTP servers whose health status is warning: they keep their sticky sessions but receive no new ones." json:"fenceOnWarning,omitempty" toml:"fenceOnWarning,omitempty" yaml:"fenceOnWarning,omitempty" export:"true"`
 }
 
 // SetDefaults sets the default values.

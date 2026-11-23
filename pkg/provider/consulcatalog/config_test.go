@@ -4125,3 +4125,96 @@ func TestFilterHealthStatuses(t *testing.T) {
 		})
 	}
 }
+
+func TestFenceOnWarning(t *testing.T) {
+	stickyLabels := map[string]string{
+		"traefik.http.services.Test.loadbalancer.sticky.cookie": "true",
+	}
+
+	testCases := []struct {
+		desc           string
+		fenceOnWarning bool
+		items          []itemData
+		expected       []dynamic.Server
+	}{
+		{
+			desc:           "enabled: the warning instance is fenced, the passing one is not",
+			fenceOnWarning: true,
+			items: []itemData{
+				{ID: "id", Node: "Node1", Name: "Test", Address: "127.0.0.1", Port: "80", Labels: stickyLabels, Status: api.HealthPassing},
+				{ID: "id", Node: "Node2", Name: "Test", Address: "127.0.0.2", Port: "80", Labels: stickyLabels, Status: api.HealthWarning},
+			},
+			expected: []dynamic.Server{
+				{URL: "http://127.0.0.1:80"},
+				{URL: "http://127.0.0.2:80", Fenced: true},
+			},
+		},
+		{
+			desc:           "disabled: a warning instance takes new traffic as before",
+			fenceOnWarning: false,
+			items: []itemData{
+				{ID: "id", Node: "Node1", Name: "Test", Address: "127.0.0.1", Port: "80", Labels: stickyLabels, Status: api.HealthPassing},
+				{ID: "id", Node: "Node2", Name: "Test", Address: "127.0.0.2", Port: "80", Labels: stickyLabels, Status: api.HealthWarning},
+			},
+			expected: []dynamic.Server{
+				{URL: "http://127.0.0.1:80"},
+				{URL: "http://127.0.0.2:80"},
+			},
+		},
+		{
+			desc:           "enabled: every instance warning, all fenced",
+			fenceOnWarning: true,
+			items: []itemData{
+				{ID: "id", Node: "Node1", Name: "Test", Address: "127.0.0.1", Port: "80", Labels: stickyLabels, Status: api.HealthWarning},
+				{ID: "id", Node: "Node2", Name: "Test", Address: "127.0.0.2", Port: "80", Labels: stickyLabels, Status: api.HealthWarning},
+			},
+			expected: []dynamic.Server{
+				{URL: "http://127.0.0.1:80", Fenced: true},
+				{URL: "http://127.0.0.2:80", Fenced: true},
+			},
+		},
+		{
+			desc:           "enabled: a server URL set by label is fenced too",
+			fenceOnWarning: true,
+			items: []itemData{
+				{
+					ID: "id", Node: "Node1", Name: "Test", Address: "127.0.0.1", Port: "80",
+					Labels: map[string]string{
+						"traefik.http.services.Test.loadbalancer.server.url": "http://10.0.0.1:8080",
+					},
+					Status: api.HealthWarning,
+				},
+			},
+			expected: []dynamic.Server{
+				{URL: "http://10.0.0.1:8080", Fenced: true},
+			},
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			var config Configuration
+			config.SetDefaults()
+			config.DefaultRule = "Host(`foo.bar`)"
+			config.FenceOnWarning = test.fenceOnWarning
+
+			p := Provider{Configuration: config}
+
+			err := p.Init()
+			require.NoError(t, err)
+
+			for i := range len(test.items) {
+				var err error
+				test.items[i].ExtraConf, err = p.getExtraConf(test.items[i].Labels)
+				require.NoError(t, err)
+			}
+
+			configuration := p.buildConfiguration(t.Context(), test.items, nil)
+
+			require.Contains(t, configuration.HTTP.Services, "Test")
+			assert.Equal(t, test.expected, configuration.HTTP.Services["Test"].LoadBalancer.Servers)
+		})
+	}
+}

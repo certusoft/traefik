@@ -771,6 +771,9 @@ Name of the Traefik service in Consul Catalog (needs to be registered via the or
 `TRAEFIK_PROVIDERS_CONSULCATALOG_STALE`:  
 Use stale consistency for catalog reads. (Default: ```false```)
 
+`TRAEFIK_PROVIDERS_CONSULCATALOG_FENCEONWARNING`:  
+Fence HTTP servers whose health status is warning: they keep their sticky sessions but receive no new ones. (Default: ```false```)
+
 `TRAEFIK_PROVIDERS_CONSULCATALOG_STRICTCHECKS`:  
 A list of service health statuses to allow taking traffic. (Default: ```passing, warning```)
 

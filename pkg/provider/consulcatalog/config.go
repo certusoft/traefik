@@ -279,6 +279,12 @@ func (p *Provider) addServer(item itemData, loadBalancer *dynamic.ServersLoadBal
 		return errors.New("address is missing")
 	}
 
+	// A warning instance is draining: like a terminating Kubernetes endpoint, it keeps serving the sticky
+	// sessions it already has, but the load balancer does not pick it for new ones.
+	if p.FenceOnWarning && item.Status == api.HealthWarning {
+		loadBalancer.Servers[0].Fenced = true
+	}
+
 	if loadBalancer.Servers[0].URL != "" {
 		if loadBalancer.Servers[0].Scheme != "" || loadBalancer.Servers[0].Port != "" {
 			return errors.New("defining scheme or port is not allowed when URL is defined")

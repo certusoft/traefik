@@ -740,6 +740,36 @@ providers:
 # ...
 ```
 
+### `fenceOnWarning`
+
+_Optional, Default=false_
+
+Fence HTTP servers whose Consul health status is `warning`.
+A fenced server keeps serving requests that carry a sticky cookie for it, but the load balancer does not pick it for new requests,
+the same way a terminating Kubernetes endpoint is handled.
+Setting an instance's check to `warning` therefore drains it: existing sticky sessions finish there while new sessions go to the other instances.
+A `critical` instance is still removed at once, as `strictChecks` decides.
+
+`warning` must be included in [`strictChecks`](#strictchecks) (it is by default); otherwise warning instances are dropped instead of fenced.
+
+```yaml tab="File (YAML)"
+providers:
+  consulCatalog:
+    fenceOnWarning: true
+    # ...
+```
+
+```toml tab="File (TOML)"
+[providers.consulCatalog]
+  fenceOnWarning = true
+  # ...
+```
+
+```bash tab="CLI"
+--providers.consulcatalog.fenceOnWarning=true
+# ...
+```
+
 ### `watch`
 
 _Optional, Default=false_

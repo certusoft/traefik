@@ -107,7 +107,47 @@ func (p *Provider) buildConfiguration(ctx context.Context, items []itemData, cer
 		configurations[itemKey] = confFromLabel
 	}
 
-	return provider.Merge(ctx, provider.NameSortedConfigurations(configurations), provider.ResourceStrategyMerge)
+	conf := provider.Merge(ctx, provider.NameSortedConfigurations(configurations), provider.ResourceStrategyMerge)
+
+	if p.FenceOnWarning {
+		unfenceFullyFencedServices(ctx, conf)
+	}
+
+	return conf
+}
+
+// unfenceFullyFencedServices clears the Fenced flag of the servers of every HTTP service whose servers are all fenced.
+// Fencing them all would leave no server for new requests, which a warning status alone does not justify:
+// such a service keeps serving as it did without fenceOnWarning, and a warning is logged.
+func unfenceFullyFencedServices(ctx context.Context, conf *dynamic.Configuration) {
+	if conf == nil || conf.HTTP == nil {
+		return
+	}
+
+	for name, service := range conf.HTTP.Services {
+		if service.LoadBalancer == nil || len(service.LoadBalancer.Servers) == 0 {
+			continue
+		}
+
+		allFenced := true
+		for _, server := range service.LoadBalancer.Servers {
+			if !server.Fenced {
+				allFenced = false
+				break
+			}
+		}
+
+		if !allFenced {
+			continue
+		}
+
+		for i := range service.LoadBalancer.Servers {
+			service.LoadBalancer.Servers[i].Fenced = false
+		}
+
+		log.Ctx(ctx).Warn().Str(logs.ServiceName, name).
+			Msg("Every server of the service has a warning health status: not fencing them, so that new requests are still served")
+	}
 }
 
 // makeItemKey returns an identifier that is unique for a given (node, name, id) triple.
@@ -279,6 +319,12 @@ func (p *Provider) addServer(item itemData, loadBalancer *dynamic.ServersLoadBal
 
 	if item.Address == "" {
 		return errors.New("address is missing")
+	}
+
+	// A warning instance is draining: like a terminating Kubernetes endpoint, it keeps serving the sticky
+	// sessions it already has, but the load balancer does not pick it for new ones.
+	if p.FenceOnWarning && item.Status == api.HealthWarning {
+		loadBalancer.Servers[0].Fenced = true
 	}
 
 	if loadBalancer.Servers[0].URL != "" {

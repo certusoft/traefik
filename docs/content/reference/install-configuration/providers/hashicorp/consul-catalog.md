@@ -55,6 +55,7 @@ Attaching tags to services:
 | <a id="opt-providers-consulCatalog-endpoint-httpAuth-username" href="#opt-providers-consulCatalog-endpoint-httpAuth-username" title="#opt-providers-consulCatalog-endpoint-httpAuth-username">`providers.consulCatalog.endpoint.httpAuth.username`</a> | Defines the username to use for HTTP Basic Authentication. |  ""    | no   |
 | <a id="opt-providers-consulCatalog-endpoint-httpAuth-password" href="#opt-providers-consulCatalog-endpoint-httpAuth-password" title="#opt-providers-consulCatalog-endpoint-httpAuth-password">`providers.consulCatalog.endpoint.httpAuth.password`</a> | Defines the password to use for HTTP Basic Authentication. |  ""    | no   |
 | <a id="opt-providers-consulCatalog-strictChecks" href="#opt-providers-consulCatalog-strictChecks" title="#opt-providers-consulCatalog-strictChecks">`providers.consulCatalog.strictChecks`</a> | Define which [Consul Service health checks](https://developer.hashicorp.com/consul/docs/register/health-check/vm#define-initial-health-check-status) are allowed to take on traffic. |  ["passing", "warning"]    | no   |
+| <a id="opt-providers-consulCatalog-fenceOnWarning" href="#opt-providers-consulCatalog-fenceOnWarning" title="#opt-providers-consulCatalog-fenceOnWarning">`providers.consulCatalog.fenceOnWarning`</a> | Fence HTTP servers whose health status is `warning`: requests carrying a sticky cookie for such a server keep reaching it, but the load balancer does not pick it for new requests. Use it to drain an instance before stopping it. Needs `warning` in `strictChecks`. |  false    | no   |
 | <a id="opt-providers-consulCatalog-endpoint-tls-ca" href="#opt-providers-consulCatalog-endpoint-tls-ca" title="#opt-providers-consulCatalog-endpoint-tls-ca">`providers.consulCatalog.endpoint.tls.ca`</a> | Defines the path to the certificate authority used for the secure connection to Consul Calatog, it defaults to the system bundle.  |  ""   | No   |
 | <a id="opt-providers-consulCatalog-endpoint-tls-cert" href="#opt-providers-consulCatalog-endpoint-tls-cert" title="#opt-providers-consulCatalog-endpoint-tls-cert">`providers.consulCatalog.endpoint.tls.cert`</a> | Defines the path to the public certificate used for the secure connection to Consul Calatog. When using this option, setting the `key` option is required. | "" | Yes   |
 | <a id="opt-providers-consulCatalog-endpoint-tls-key" href="#opt-providers-consulCatalog-endpoint-tls-key" title="#opt-providers-consulCatalog-endpoint-tls-key">`providers.consulCatalog.endpoint.tls.key`</a> | Defines the path to the private key used for the secure connection to Consul Catalog. When using this option, setting the `cert` option is required. | ""   | Yes   |
@@ -201,6 +202,39 @@ providers:
 
 ```bash tab="CLI"
 --providers.consulcatalog.namespaces=ns1,ns2
+# ...
+```
+
+### `fenceOnWarning`
+
+When `fenceOnWarning` is enabled, an HTTP server whose Consul health status is `warning` is fenced:
+requests carrying a [sticky cookie](../../../routing-configuration/http/load-balancing/service.md#sticky-sessions) for it keep reaching it,
+but the load balancer does not pick it for new requests, the same way a terminating Kubernetes endpoint is handled.
+Setting the check of an instance to `warning` therefore drains it: its existing sticky sessions finish there,
+while new sessions go to the other instances.
+A `critical` instance is still removed at once.
+
+If every server of a service has a `warning` status, none of them is fenced, so that new requests are still served,
+and a warning is logged.
+
+`warning` must be included in [`strictChecks`](#opt-providers-consulCatalog-strictChecks) (it is by default);
+otherwise warning instances are dropped instead of fenced.
+
+```yaml tab="File (YAML)"
+providers:
+  consulCatalog:
+    fenceOnWarning: true
+    # ...
+```
+
+```toml tab="File (TOML)"
+[providers.consulCatalog]
+  fenceOnWarning = true
+  # ...
+```
+
+```bash tab="CLI"
+--providers.consulcatalog.fenceOnWarning=true
 # ...
 ```
 

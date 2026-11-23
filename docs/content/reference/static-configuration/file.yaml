@@ -255,6 +255,7 @@ providers:
     strictChecks:
       - foobar
       - foobar
+    fenceOnWarning: true
     namespaces:
       - foobar
       - foobar
